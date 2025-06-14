@@ -14,7 +14,8 @@ function App() {
     const [currentDocumentId, setCurrentDocumentId] = useState(null);
     const [documents, setDocuments] = useState([]);
     const [documentVersions, setDocumentVersions] = useState([]);
-    const [activeUsers, setActiveUsers] = useState([]); // New state for active users
+    const [activeUsers, setActiveUsers] = useState([]);
+    const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'editor'
     const editorRef = useRef(null);
 
     const fetchDocuments = useCallback(async () => {
@@ -72,7 +73,6 @@ function App() {
             }
         };
     }, [token, username]);
-
 
     // Fetch all documents on component mount or token change
     useEffect(() => {
@@ -144,6 +144,7 @@ function App() {
         setCurrentDocumentId(null);
         setDocumentVersions([]);
         setActiveUsers([]);
+        setCurrentView('dashboard');
         if (socket.connected) {
             socket.disconnect();
         }
@@ -163,6 +164,8 @@ function App() {
 
     const createDocument = async () => {
         if (!token) return alert('Please log in to create a document.');
+        if (!documentTitle.trim()) return alert('Please enter a document title.');
+        
         try {
             const response = await fetch(`${API_BASE_URL}/documents`, {
                 method: 'POST',
@@ -170,11 +173,12 @@ function App() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ title: documentTitle, content: documentContent }),
+                body: JSON.stringify({ title: documentTitle, content: '' }),
             });
             const newDoc = await response.json();
             if (response.ok) {
                 setDocuments([...documents, newDoc]);
+                // Automatically open the new document
                 loadDocument(newDoc);
                 setDocumentTitle(''); // Clear title input after creation
                 socket.emit('new-document-created', newDoc); // Notify others
@@ -202,6 +206,7 @@ function App() {
                 setDocumentTitle(fullDoc.title);
                 setDocumentContent(fullDoc.content);
                 setCurrentDocumentId(fullDoc._id);
+                setCurrentView('editor'); // Switch to editor view
                 fetchDocumentVersions(fullDoc._id);
                 socket.emit('join-document', fullDoc._id, username); // Pass username when joining
             } else if (response.status === 401 || response.status === 403) {
@@ -250,83 +255,114 @@ function App() {
         }
     };
 
+    const goBackToDashboard = () => {
+        setCurrentView('dashboard');
+        setCurrentDocumentId(null);
+        setDocumentContent('');
+        setDocumentVersions([]);
+        setActiveUsers([]);
+    };
+
     if (!token) {
         return <Auth onAuthSuccess={handleAuthSuccess} />;
     }
 
-    return (
-        <div className="App">
-            <div className="header">
-                <h1>Real-time Collaboration Platform</h1>
-                {username && <p>Welcome, {username}!</p>}
-                <button onClick={handleLogout} className="logout-button">Logout</button>
-            </div>
-            
-            <div className="document-controls">
-                <input
-                    type="text"
-                    placeholder="Document Title"
-                    value={documentTitle}
-                    onChange={handleTitleChange}
-                />
-                <button onClick={createDocument}>Create New Document</button>
-                <button onClick={saveDocument}>Save Document</button>
-            </div>
-
-            <div className="document-list">
-                <h2>Existing Documents</h2>
-                {documents.length === 0 && <p>No documents yet. Create one!</p>}
-                <ul>
-                    {documents.map((doc) => (
-                        <li key={doc._id} onClick={() => loadDocument(doc)}>
-                            {doc.title} - Last updated: {new Date(doc.updatedAt).toLocaleString()}
-                        </li>
-                    ))}
-                </ul>
-            </div>
-
-            {currentDocumentId && (
-                <div className="editor-and-versions-container">
-                    <div className="editor-container">
-                        <textarea
-                            ref={editorRef}
-                            value={documentContent}
-                            onChange={handleContentChange}
-                            placeholder="Start typing here..."
-                            rows="20"
-                            cols="80"
-                        ></textarea>
-                    </div>
-                    <div className="version-history">
-                        <h2>Version History</h2>
-                        {documentVersions.length === 0 && <p>No versions available.</p>}
-                        <ul>
-                            {documentVersions.map((version, index) => (
-                                <li key={index}>
-                                    Version {index + 1} ({new Date(version.timestamp).toLocaleString()})
-                                    <button onClick={() => revertDocument(index)} className="revert-button">
-                                        Revert
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                        {activeUsers.length > 0 && (
-                            <div className="active-users">
-                                <h3>Active Users</h3>
-                                <ul>
-                                    {activeUsers.map((user, index) => (
-                                        <li key={index}>{user}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
+    // Dashboard View
+    if (currentView === 'dashboard') {
+        return (
+            <div className="App">
+                <div className="header">
+                    <h1>RealSync</h1>
+                    {username && <p>Welcome, {username}!</p>}
+                    <button onClick={handleLogout} className="logout-button">Logout</button>
                 </div>
-            )}
-            {!currentDocumentId && documents.length > 0 && (
-                <p>Select a document from the list above to start editing.</p>
-            )}
-            
+                
+                <div className="document-controls">
+                    <input
+                        type="text"
+                        placeholder="Document Title"
+                        value={documentTitle}
+                        onChange={handleTitleChange}
+                    />
+                    <button onClick={createDocument}>Create New Document</button>
+                </div>
+
+                <div className="document-list">
+                    <h2>Existing Documents</h2>
+                    {documents.length === 0 && <p>No documents yet. Create one!</p>}
+                    <ul>
+                        {documents.map((doc) => (
+                            <li key={doc._id}>
+                                <div className="document-info">
+                                    <strong>{doc.title}</strong>
+                                    <br />
+                                    <small>Last updated: {new Date(doc.updatedAt).toLocaleString()}</small>
+                                </div>
+                                <button 
+                                    className="open-button"
+                                    onClick={() => loadDocument(doc)}
+                                >
+                                    Open
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        );
+    }
+
+    // Editor View
+    return (
+        <div className="document-editor-page">
+            <div className="document-editor-header">
+                <h2>{documentTitle || 'Untitled Document'}</h2>
+                <div>
+                    <button onClick={saveDocument} className="document-controls button" style={{marginRight: '10px'}}>
+                        Save Document
+                    </button>
+                    <button onClick={goBackToDashboard} className="back-button">
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+
+            <div className="editor-and-versions-container">
+                <div className="editor-container">
+                    <textarea
+                        ref={editorRef}
+                        value={documentContent}
+                        onChange={handleContentChange}
+                        placeholder="Start typing here..."
+                        rows="20"
+                        cols="80"
+                    ></textarea>
+                </div>
+                <div className="version-history">
+                    <h2>Version History</h2>
+                    {documentVersions.length === 0 && <p>No versions available.</p>}
+                    <ul>
+                        {documentVersions.map((version, index) => (
+                            <li key={index}>
+                                Version {index + 1} ({new Date(version.timestamp).toLocaleString()})
+                                <button onClick={() => revertDocument(index)} className="revert-button">
+                                    Revert
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                    {activeUsers.length > 0 && (
+                        <div className="active-users">
+                            <h3>Active Users</h3>
+                            <ul>
+                                {activeUsers.map((user, index) => (
+                                    <li key={index}>{user}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
