@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import Auth from './components/Auth';
 import './App.css';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'https://realsync-yp12.onrender.com';
 const socket = io(API_BASE_URL, { autoConnect: false }); // Prevent auto-connection
 
 function App() {
