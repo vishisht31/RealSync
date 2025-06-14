@@ -4,7 +4,7 @@ import Auth from './components/Auth';
 import './App.css';
 
 const API_BASE_URL = 'https://realsync-yp12.onrender.com';
-const socket = io(API_BASE_URL, { autoConnect: false }); // Prevent auto-connection
+const socket = io(API_BASE_URL, { autoConnect: false }); 
 
 function App() {
     const [token, setToken] = useState(localStorage.getItem('token'));
@@ -14,7 +14,7 @@ function App() {
     const [currentDocumentId, setCurrentDocumentId] = useState(null);
     const [documents, setDocuments] = useState([]);
     const [documentVersions, setDocumentVersions] = useState([]);
-    const [activeUsers, setActiveUsers] = useState([]); // New state for active users
+    const [activeUsers, setActiveUsers] = useState([]); 
     const editorRef = useRef(null);
 
     const fetchDocuments = useCallback(async () => {
@@ -59,10 +59,9 @@ function App() {
         }
     }, [token]);
 
-    // Handle Socket.io connection on token presence
     useEffect(() => {
         if (token && username && !socket.connected) {
-            socket.auth = { username }; // Pass username for disconnect handling
+            socket.auth = { username };
             socket.connect();
         }
 
@@ -74,14 +73,12 @@ function App() {
     }, [token, username]);
 
 
-    // Fetch all documents on component mount or token change
     useEffect(() => {
         if (token) {
             fetchDocuments();
         }
     }, [token, fetchDocuments]);
 
-    // Socket.io effects for real-time updates
     useEffect(() => {
         if (!token) return;
 
@@ -93,7 +90,7 @@ function App() {
 
         socket.on('document-saved', (updatedDoc) => {
             console.log('Document saved by server:', updatedDoc);
-            fetchDocuments(); // Refresh the list of documents
+            fetchDocuments(); 
             if (currentDocumentId === updatedDoc._id) {
                 fetchDocumentVersions(updatedDoc._id);
             }
@@ -101,7 +98,7 @@ function App() {
 
         socket.on('documents-updated', () => {
             console.log('Documents list updated by server, refetching...');
-            fetchDocuments(); // Trigger a refresh of all documents
+            fetchDocuments(); 
         });
 
         socket.on('active-users-update', (users) => {
@@ -127,7 +124,7 @@ function App() {
         localStorage.setItem('username', newUsername);
         setToken(newToken);
         setUsername(newUsername);
-        socket.auth = { username: newUsername }; // Set username for socket immediately
+        socket.auth = { username: newUsername }; 
         if (!socket.connected) {
             socket.connect();
         }
@@ -176,8 +173,8 @@ function App() {
             if (response.ok) {
                 setDocuments([...documents, newDoc]);
                 loadDocument(newDoc);
-                setDocumentTitle(''); // Clear title input after creation
-                socket.emit('new-document-created', newDoc); // Notify others
+                setDocumentTitle('');
+                socket.emit('new-document-created', newDoc); 
             } else if (response.status === 401 || response.status === 403) {
                 handleLogout();
             } else {
@@ -203,7 +200,7 @@ function App() {
                 setDocumentContent(fullDoc.content);
                 setCurrentDocumentId(fullDoc._id);
                 fetchDocumentVersions(fullDoc._id);
-                socket.emit('join-document', fullDoc._id, username); // Pass username when joining
+                socket.emit('join-document', fullDoc._id, username); 
             } else if (response.status === 401 || response.status === 403) {
                 handleLogout();
             } else {
@@ -236,8 +233,8 @@ function App() {
             });
             const data = await response.json();
             if (response.ok) {
-                setDocumentContent(data.content); // Update editor with reverted content
-                fetchDocumentVersions(currentDocumentId); // Refresh versions
+                setDocumentContent(data.content);
+                fetchDocumentVersions(currentDocumentId); 
                 alert('Document reverted successfully!');
             } else if (response.status === 401 || response.status === 403) {
                 handleLogout();

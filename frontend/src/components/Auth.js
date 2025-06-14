@@ -28,7 +28,6 @@ function Auth({ onAuthSuccess }) {
                 if (isLogin) {
                     onAuthSuccess(data.token, data.username);
                 }
-                // For registration, clear fields and switch to login after success
                 if (!isLogin) {
                     setUsername('');
                     setPassword('');

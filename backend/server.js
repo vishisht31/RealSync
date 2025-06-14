@@ -15,11 +15,10 @@ const io = socketIo(server, {
     }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey'; // Use environment variable for production
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
 
-// Middleware
 app.use(cors());
-app.use(express.json()); // For parsing application/json
+app.use(express.json());
 
 // MongoDB Connection
 const MONGODB_URI = 'mongodb+srv://vishishtmaroria31:uoLcFMPE9gyna33C@cluster0.1mpgutm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
@@ -37,7 +36,6 @@ const userSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
     if (this.isModified('password')) {
         this.password = await bcrypt.hash(this.password, 10);
@@ -56,7 +54,6 @@ const documentSchema = new mongoose.Schema({
         {
             content: { type: String },
             timestamp: { type: Date, default: Date.now },
-            // userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } // Optional: to track who made changes
         }
     ],
     createdAt: { type: Date, default: Date.now },
@@ -65,21 +62,19 @@ const documentSchema = new mongoose.Schema({
 
 const Document = mongoose.model('Document', documentSchema);
 
-// Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) return res.sendStatus(401); // No token
+    if (!token) return res.sendStatus(401); 
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403); // Invalid token
+        if (err) return res.sendStatus(403); 
         req.user = user;
         next();
     });
 };
 
-// Authentication Routes
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -107,12 +102,10 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// API Routes (now protected for document creation/management)
 app.get('/', (req, res) => {
     res.send('Real-time Collaboration Platform Backend');
 });
 
-// Create a new document
 app.post('/documents', authenticateToken, async (req, res) => {
     try {
         const { title, content } = req.body;
@@ -126,7 +119,7 @@ app.post('/documents', authenticateToken, async (req, res) => {
     }
 });
 
-// Get all documents (now accessible by any authenticated user)
+// Get all documents
 app.get('/documents', authenticateToken, async (req, res) => {
     try {
         const documents = await Document.find({}); // Fetch all documents
@@ -136,21 +129,19 @@ app.get('/documents', authenticateToken, async (req, res) => {
     }
 });
 
-// Get a single document by ID (now accessible by any authenticated user)
+// Get a single document by ID 
 app.get('/documents/:id', authenticateToken, async (req, res) => {
     try {
         const document = await Document.findById(req.params.id);
         if (!document) {
             return res.status(404).json({ error: 'Document not found' });
         }
-        // No owner check here, as it's a shared document
         res.status(200).json(document);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// Update a document by ID and save new version (now editable by any authenticated user)
 app.put('/documents/:id', authenticateToken, async (req, res) => {
     try {
         const { content } = req.body;
@@ -173,7 +164,6 @@ app.put('/documents/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// Get document versions (now accessible by any authenticated user)
 app.get('/documents/:id/versions', authenticateToken, async (req, res) => {
     try {
         const document = await Document.findById(req.params.id);
@@ -186,7 +176,6 @@ app.get('/documents/:id/versions', authenticateToken, async (req, res) => {
     }
 });
 
-// Revert to a specific version (now accessible by any authenticated user)
 app.post('/documents/:id/revert', authenticateToken, async (req, res) => {
     try {
         const { versionIndex } = req.body;
@@ -213,8 +202,7 @@ app.post('/documents/:id/revert', authenticateToken, async (req, res) => {
     }
 });
 
-// Socket.io for real-time editing and user presence
-const activeUsers = {}; // To store active users per document
+const activeUsers = {}; 
 
 io.on('connection', (socket) => {
     console.log('A user connected');
@@ -223,7 +211,6 @@ io.on('connection', (socket) => {
         socket.join(documentId);
         console.log(`User ${username} joined document: ${documentId}`);
 
-        // Track active users in this document
         if (!activeUsers[documentId]) {
             activeUsers[documentId] = [];
         }
@@ -251,7 +238,6 @@ io.on('connection', (socket) => {
                 await updatedDocument.save();
                 io.to(documentId).emit('document-saved', updatedDocument);
                 console.log(`Document ${documentId} saved.`);
-                // Broadcast to all clients that documents might have changed (for list refresh)
                 io.emit('documents-updated');
             } else {
                 console.error('Document not found for save:', documentId);
@@ -264,18 +250,16 @@ io.on('connection', (socket) => {
     });
 
     socket.on('new-document-created', (newDoc) => {
-        // Broadcast to all clients that a new document has been created
         io.emit('documents-updated');
     });
 
     socket.on('disconnect', () => {
         console.log('User disconnected');
-        // Remove user from active users list for all rooms they were in
         for (const docId in activeUsers) {
             activeUsers[docId] = activeUsers[docId].filter(user => user !== socket.handshake.query.username);
             io.to(docId).emit('active-users-update', activeUsers[docId]);
             if (activeUsers[docId].length === 0) {
-                delete activeUsers[docId]; // Clean up empty document rooms
+                delete activeUsers[docId]; 
             }
         }
     });
