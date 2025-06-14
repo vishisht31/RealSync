@@ -234,7 +234,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send-changes', (data) => {
-        io.to(data.documentId).emit('receive-changes', data.changes);
+        socket.broadcast.to(data.documentId).emit('receive-changes', data.changes);
     });
 
     socket.on('save-document', async (data) => {
