@@ -28,7 +28,7 @@
 
 .form-group input[type="text"],
 .form-group input[type="password"] {
-    width: calc(100% - 20px); /* Account for padding */
+    width: calc(100% - 20px); 
     padding: 10px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -69,7 +69,16 @@
     padding: 10px;
     border-radius: 4px;
     font-weight: bold;
+}
+
+.auth-message.error {
     color: #d8000c;
     background-color: #ffbaba;
     border: 1px solid #d8000c;
-} 
+}
+
+.auth-message.success {
+    color: #155724;
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+}

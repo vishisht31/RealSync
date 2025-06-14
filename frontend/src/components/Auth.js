@@ -6,10 +6,12 @@ function Auth({ onAuthSuccess }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
+    const [messageType, setMessageType] = useState(''); // 'success' or 'error'
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setMessage('');
+        setMessageType('');
 
         const endpoint = isLogin ? 'api/user/login' : 'api/user/register';
         try {
@@ -24,11 +26,13 @@ function Auth({ onAuthSuccess }) {
             const data = await response.json();
 
             if (response.ok) {
-                setMessage(data.message || (isLogin ? 'Login successful!' : 'Registration successful! Please log in.'));
+                const successMessage = data.message || (isLogin ? 'Login successful!' : 'Registration successful! Please log in.');
+                setMessage(successMessage);
+                setMessageType('success');
+                
                 if (isLogin) {
                     onAuthSuccess(data.token, data.username);
                 }
-                // For registration, clear fields and switch to login after success
                 if (!isLogin) {
                     setUsername('');
                     setPassword('');
@@ -36,10 +40,12 @@ function Auth({ onAuthSuccess }) {
                 }
             } else {
                 setMessage(data.error || 'An error occurred.');
+                setMessageType('error');
             }
         } catch (error) {
             console.error('Auth error:', error);
             setMessage('Network error or server unreachable.');
+            setMessageType('error');
         }
     };
 
@@ -70,9 +76,13 @@ function Auth({ onAuthSuccess }) {
             <p onClick={() => setIsLogin(!isLogin)} className="toggle-auth">
                 {isLogin ? 'Need an account? Register' : 'Already have an account? Login'}
             </p>
-            {message && <p className="auth-message">{message}</p>}
+            {message && (
+                <p className={`auth-message ${messageType}`}>
+                    {message}
+                </p>
+            )}
         </div>
     );
 }
 
-export default Auth; 
+export default Auth;
