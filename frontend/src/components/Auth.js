@@ -11,9 +11,9 @@ function Auth({ onAuthSuccess }) {
         e.preventDefault();
         setMessage('');
 
-        const endpoint = isLogin ? 'api/login' : 'api/register';
+        const endpoint = isLogin ? 'api/user/login' : 'api/user/register';
         try {
-            const response = await fetch(`https://realsync-yp12.onrender.com/${endpoint}`, {
+            const response = await fetch(`http://localhost:5000/${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

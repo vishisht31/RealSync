@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import Auth from './components/Auth';
 import './App.css';
 
-const API_BASE_URL = 'https://realsync-yp12.onrender.com';
+const API_BASE_URL = 'http://localhost:5000';
 const socket = io(API_BASE_URL, { autoConnect: false }); // Prevent auto-connection
 
 function App() {
@@ -20,7 +20,7 @@ function App() {
     const fetchDocuments = useCallback(async () => {
         if (!token) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/documents`, {
+            const response = await fetch(`${API_BASE_URL}/api/document/fetchAllDocuments`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -41,7 +41,7 @@ function App() {
     const fetchDocumentVersions = useCallback(async (docId) => {
         if (!token || !docId) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/documents/${docId}/versions`, {
+            const response = await fetch(`${API_BASE_URL}/api/document/${docId}/versions`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -164,7 +164,7 @@ function App() {
     const createDocument = async () => {
         if (!token) return alert('Please log in to create a document.');
         try {
-            const response = await fetch(`${API_BASE_URL}/documents`, {
+            const response = await fetch(`${API_BASE_URL}/api/document/createDocument`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ function App() {
     const loadDocument = async (doc) => {
         if (!token) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/documents/${doc._id}`, {
+            const response = await fetch(`${API_BASE_URL}/api/document/${doc._id}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -223,10 +223,11 @@ function App() {
         }
     };
 
+
     const revertDocument = async (versionIndex) => {
         if (!currentDocumentId || !token) return;
         try {
-            const response = await fetch(`${API_BASE_URL}/documents/${currentDocumentId}/revert`, {
+            const response = await fetch(`${API_BASE_URL}/api/document/${currentDocumentId}/revert`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -1,217 +1,43 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const http = require('http');
-const socketIo = require('socket.io');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+
+import express from "express"
+import cors from "cors"
+import 'dotenv/config'
+import http from "http"; // Required for WebSockets
+import {Server} from "socket.io"; // Import Socket.io
+import userRouter from "./routes/userRoute.js"
+import documentRouter from "./routes/documentRoute.js";
+import connectDB from "./db/database.js";
+import Document from "./models/document.js";
+import User from "./models/user.js";
+
+
 
 const app = express();
+connectDB();
 const server = http.createServer(app);
-const io = socketIo(server, {
+const io =new Server(server, {
     cors: {
         origin: "*", 
         methods: ["GET", "POST"]
     }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey'; // Use environment variable for production
+
 
 // Middleware
 app.use(cors());
 app.use(express.json()); // For parsing application/json
 
-// MongoDB Connection
-const MONGODB_URI = 'mongodb+srv://vishishtmaroria31:uoLcFMPE9gyna33C@cluster0.1mpgutm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
-mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
-
-// User Schema
-const userSchema = new mongoose.Schema({
-    username: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now }
-});
-
-// Hash password before saving
-userSchema.pre('save', async function (next) {
-    if (this.isModified('password')) {
-        this.password = await bcrypt.hash(this.password, 10);
-    }
-    next();
-});
-
-const User = mongoose.model('User', userSchema);
-
-// Document Schema
-const documentSchema = new mongoose.Schema({
-    title: { type: String, required: true, unique: true },
-    content: { type: String, default: '' },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Link to user
-    versions: [
-        {
-            content: { type: String },
-            timestamp: { type: Date, default: Date.now },
-            // userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } // Optional: to track who made changes
-        }
-    ],
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
-});
-
-const Document = mongoose.model('Document', documentSchema);
-
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) return res.sendStatus(401); // No token
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403); // Invalid token
-        req.user = user;
-        next();
-    });
-};
-
-// Authentication Routes
-app.post('/api/register', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const newUser = new User({ username, password });
-        await newUser.save();
-        res.status(201).json({ message: 'User registered successfully' });
-    } catch (err) {
-        res.status(400).json({ error: 'Username already exists or invalid data' });
-    }
-});
-
-app.post('/api/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const user = await User.findOne({ username });
-        if (!user) return res.status(400).json({ error: 'Invalid credentials' });
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
-
-        const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
-        res.status(200).json({ token, username: user.username });
-    } catch (err) {
-        res.status(500).json({ error: 'Server error' });
-    }
-});
 
 // API Routes (now protected for document creation/management)
 app.get('/', (req, res) => {
     res.send('Real-time Collaboration Platform Backend');
 });
 
-// Create a new document
-app.post('/documents', authenticateToken, async (req, res) => {
-    try {
-        const { title, content } = req.body;
-        const newDocument = new Document({ title, content, owner: req.user.id });
-        // Save initial version
-        newDocument.versions.push({ content: content || '' });
-        await newDocument.save();
-        res.status(201).json(newDocument);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-});
 
-// Get all documents (now accessible by any authenticated user)
-app.get('/documents', authenticateToken, async (req, res) => {
-    try {
-        const documents = await Document.find({}); // Fetch all documents
-        res.status(200).json(documents);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+app.use('/api/user',userRouter) //localhost:4040/api/admin/add-doctor
+app.use('/api/document',documentRouter) 
 
-// Get a single document by ID (now accessible by any authenticated user)
-app.get('/documents/:id', authenticateToken, async (req, res) => {
-    try {
-        const document = await Document.findById(req.params.id);
-        if (!document) {
-            return res.status(404).json({ error: 'Document not found' });
-        }
-        // No owner check here, as it's a shared document
-        res.status(200).json(document);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Update a document by ID and save new version (now editable by any authenticated user)
-app.put('/documents/:id', authenticateToken, async (req, res) => {
-    try {
-        const { content } = req.body;
-        const document = await Document.findById(req.params.id);
-
-        if (!document) {
-            return res.status(404).json({ error: 'Document not found' });
-        }
-
-        document.content = content;
-        document.updatedAt = Date.now();
-        if (document.versions.length === 0 || document.versions[document.versions.length - 1].content !== content) {
-            document.versions.push({ content: content });
-        }
-
-        await document.save();
-        res.status(200).json(document);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-});
-
-// Get document versions (now accessible by any authenticated user)
-app.get('/documents/:id/versions', authenticateToken, async (req, res) => {
-    try {
-        const document = await Document.findById(req.params.id);
-        if (!document) {
-            return res.status(404).json({ error: 'Document not found' });
-        }
-        res.status(200).json(document.versions);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Revert to a specific version (now accessible by any authenticated user)
-app.post('/documents/:id/revert', authenticateToken, async (req, res) => {
-    try {
-        const { versionIndex } = req.body;
-        const document = await Document.findById(req.params.id);
-
-        if (!document) {
-            return res.status(404).json({ error: 'Document not found' });
-        }
-
-        if (versionIndex < 0 || versionIndex >= document.versions.length) {
-            return res.status(400).json({ error: 'Invalid version index' });
-        }
-
-        const targetVersionContent = document.versions[versionIndex].content;
-        document.content = targetVersionContent;
-        document.updatedAt = Date.now();
-        document.versions.push({ content: targetVersionContent, timestamp: new Date() });
-        await document.save();
-
-        res.status(200).json(document);
-    } catch (err) {
-        console.error('Error reverting document:', err);
-        res.status(500).json({ error: 'Failed to revert document' });
-    }
-});
 
 // Socket.io for real-time editing and user presence
 const activeUsers = {}; // To store active users per document
